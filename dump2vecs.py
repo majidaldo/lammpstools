@@ -310,9 +310,7 @@ class dump2vecs(object):
         
 
 
-    
-bdf="\\\\129.59.197.166\\aldosams\\anontplab\\research\\yag\\runtypes\\eqvib\\0\\bdf.dump"
-d2vt=dump2vecs(bdf)
+
 
 #index is 3 make :3 len of atomidstr+spc
 #[float(aline.split()[3]) for aline in d2vt.dumpfile if '10 ' in aline[:3]]
