@@ -25,6 +25,16 @@
 #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+"""
+usage: initiate dumps2vecs object with (optionally) a directory name and dump
+files pattern matching. defaults to the current directory and matches *.dump 
+files. then use method user_extractallvectors. obj.user_extractallvectors?
+for more info on the method.
+
+speed is significantly reduced if the number of atoms changes often or if each
+file only contains one frame (or few frames).
+
+"""
 
 
 import itertools
