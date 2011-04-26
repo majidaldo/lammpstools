@@ -42,10 +42,8 @@ use method user_extractallvectors with a large chunksize
         self.box={'x':None,'y':None};
         if dim==3: self.box.update({'z':None})
         self.broken=None# a place for when the natoms in a frame changes
-        #self.tsi=[]
         self.ts=None
         self.attribs=self.getatomattribs();self.dumpfile.seek(0)
-        #self.aids=self.getatomids1();self.dumpfile.seek(0)
         return
         
     def getdim(self):
@@ -62,40 +60,7 @@ use method user_extractallvectors with a large chunksize
         attribs.pop('ITEM:');attribs.pop('ATOMS')
         #attribs.pop('id')
         return attribs
-        
-#    def getatomids1(self):
-#        fo=self.dumpfile
-#        cont=True
-#        atomids=[]
-#        #get no. of atoms
-#        while cont==True:
-#            al=fo.readline()
-#            if 'ITEM: NUMBER OF ATOMS' in al:
-#                #read the no. in the next line
-#                natoms=int(fo.readline())        
-#                cont=False
-#        if natoms==0: return atomids
-#        #then read to titles
-#        cont=True
-#        while cont==True:
-#            al=fo.readline()
-#            if 'ITEM: ATOMS' in al: cont=False
-#        #so the next line should have an atom
-#        cont=True;atomcount=0
-#        while atomcount<natoms:
-#            try:al=fo.readline()
-#            except EOFError: raise KeyError, '1st frame incomplete'
-#            try:anatomid=al.split()[0]
-#            except: raise Exception, '1st frame incomplete'
-#            atomcount+=1;atomids.append(int(anatomid))
-#        #fo.close()
-#        return atomids
-    
-#    def scantonexttable2(self):
-##        for aline in self.dumpfile:
-##            if 'ITEM: ATOMS' in aline: return self.dumpfile.tell()
-#        while 'ITEM: ATOMS' not in self.dumpfile.readline(): continue
-#        return self.dumpfile.tell()
+
     def scantonexttable(self): return self.scantostr('ITEM: A')#TOMS')
     #faster than scatohead idk why!!    
     
@@ -109,51 +74,30 @@ use method user_extractallvectors with a large chunksize
     def scantonatoms(self):return self.scantostr('ITEM: N')#ER OF ATOMS
     def scantoboxbounds(self):return self.scantostr('ITEM: B')#OX BOUNDS
 
-    
 
-
-#if atoms not found and we got to the next frame return none
-#self.jump=False; 
-
-#make a C loop that filters
-#[ aline if "atmid ' in it]
-#then map to extract
-#[str.split(al)[3] for al in d2vt.dumpfile if '10 ' in al]
     def scantostr(self,astr):#faster. idk why
         for aline in self.dumpfile:
             if astr not in aline: continue #how is this faster?!?!
             else:#it found the str
-#                if astr not in self.jumperi: self. #deque
-#                else: self.jumperi
                 yield aline #self.jump=False
     def scantohead(self,astr):# faster yet
         nc=len(astr)
         for aline in self.dumpfile:
             if astr in aline[:nc]: yield aline
 
-    #so enable jump before each
-        #while astr not in self.dumpfile.readline(): continue 
-        #return self.dumpfile.tell() 
-    
+
     def fastscantonextatomline(self,atomid): #this is faster
     #than putting it in a list compr
         """atom id has to be first thing in line"""
         aidstr=str(atomid)+' '        
         for ats in self.scantonextframe():
             yield self.scantohead(aidstr).next()
-        
-            
 #slow            
 #            try:
 #                aid=(int(al.split()[0])) #todo AND
 #                if aid== atomid: yield al
 #            except:pass
-            
         #return self.scantostr(str(atomid)+' ')
-        
-    def gotoframe(self,ts):#useless? already visited
-        self.dumpfile.seek(self.tsi[ts]); return
-    
 
 
     def nexttimestep(self):
@@ -163,9 +107,8 @@ use method user_extractallvectors with a large chunksize
             #dont yield int(theresult) , it's ok here b/c it wont spend 
             #much time here
         self.scantonextframe().next()
-        #self.tsi.append(int(self.dumpfile.next()))
         self.ts=int(self.dumpfile.next())
-        return self.ts#[:-1]
+        return self.ts
     def nextnatoms(self):
 #        for ani in self.scantonatoms():
 #            self.natoms=int(self.dumpfile.next())
@@ -209,7 +152,8 @@ use method user_extractallvectors with a large chunksize
         #so you get back two iters one inside another
         #you could get back a certain line number an atom block very fast
         
-    def idlinesbyatomid(self,atomblock):#useless
+    def idlinesbyatomid(self,atomblock):
+        """shortcut to get block of one atom. not used by program"""
         #block has unique atoms
         #somehow the spc arg makes if faster
 #        return (int(aline.split(' ')[self.attribs['id']]) \
@@ -244,24 +188,7 @@ use method user_extractallvectors with a large chunksize
                 else: raise StopIteration
         return {'timesteps':iter(tss),'boxbounds':iter(boxes),'natoms':iter(natoms)
         ,'atomsblocks':iter(atomsblocks)}
-
-#    def aggregate(self,frames):
-#        tss=(fi[0] for fi in frames)
-#        boxes=(fi[1] for fi in frames)
-#        natoms=(fi[2] for fi in frames)
-#        atomblocks=([fi[3] for fi in frames])
-#        stackedatomblocks=(item for sublist in atomblocks for item in sublist)
-#        return tss,boxes,natoms,stackedatomblocks
-               
-#        tss=[];boxes=[];natoms=[]
-#        atomblocks=[]
-#        for aframe in frames:
-#            tss.append(aframe[0]);boxes.append(aframe[1]);natoms.append(aframe[2])
-#            atomblocks.extend(aframe[3])
-#        return {'timesteps':iter(tss),'boxbounds':iter(boxes),'natoms':iter(natoms)
-#        ,'atomblocks':iter(list(atomblocks))}#invoke the inside by list iter 1st
-
-#todo interrupt seq if no. of atms changes. throw exception        
+      
     def binatomlines(self,atomsblock):#in order
         """in:sequence of lines of atoms. out: dict of atoms's lines"""
         #apply numpy sort?
@@ -337,10 +264,8 @@ class dumps2vecs(dump2vecs):
         self.box={'x':None,'y':None};
         if dim==3: self.box.update({'z':None})
         self.broken=None# a place for when the natoms in a frame changes
-        #self.tsi=[]
         self.ts=None
         self.attribs=self.getatomattribs();self.dumpfile.seek(0)
-        #self.aids=self.getatomids1();self.dumpfile.seek(0)
         
         #replace dumpfile iter     
         fobjs=itertools.imap(open,dfs)
