@@ -32,7 +32,10 @@ import collections
 import operator
 
 class dump2vecs(object):
-    
+    """
+Usage: initiate with dump file
+use method user_extractallvectors with a large chunksize
+"""
     def __init__(self,dumpfile):
         self.dumpfile=open(dumpfile,'r')
         dim=self.getdim();self.dumpfile.seek(0)
@@ -151,7 +154,7 @@ class dump2vecs(object):
     def gotoframe(self,ts):#useless? already visited
         self.dumpfile.seek(self.tsi[ts]); return
     
-    def gotopreviousframe(self):pass
+
 
     def nexttimestep(self):
 #        for ani in self.scantonextframe(): #todo. make this jump
@@ -188,7 +191,10 @@ class dump2vecs(object):
         
     def nextframeinfoi(self):
         while True:
+            lastts=self.ts
             self.nexttimestep()
+            if self.ts==lastts:continue #to pass repeated frames from
+            #restarted sims
             self.nextnatoms()
             self.nextboxbounds()#.next()
             self.scantonexttable().next()
@@ -234,7 +240,7 @@ class dump2vecs(object):
                 appender(af)
                 ctr+=1;lastna=af[2]
             except StopIteration:
-                if ctr!=0:print ctr,'timesteps read';break
+                if ctr!=0:print 'COMPLETE.',ctr,'timesteps read';break
                 else: raise StopIteration
         return {'timesteps':iter(tss),'boxbounds':iter(boxes),'natoms':iter(natoms)
         ,'atomsblocks':iter(atomsblocks)}
@@ -293,7 +299,7 @@ class dump2vecs(object):
         binals=self.binatomlines(framesdata.pop('atomsblocks')) #should be no hit in pop
         eachatomwitsvectors=( (anatom, self.extractvectorsfromlines(binals[anatom])) \
             for anatom in binals.keys() )
-        framesdata.update({'vecs':[eachatomwitsvectors]})
+        framesdata.update({'vecs':eachatomwitsvectors})
         return framesdata
         #want to map this op
 #    def extractnext(self,atomid,colname):#vector index
@@ -304,15 +310,40 @@ class dump2vecs(object):
         #return operator.itemgetter(*vi)(sl)
     
     def user_extractallvectors(self,chunk=1000):
+        """output: an outer iterator that reads the file(s) chunk timesteps at 
+        a time. an inner iterator that iterates over boxbounds, number of atoms,
+        timesteps, and vectors. the vector iterator gives tuples 
+        (atomid, dictonary of (named) vectors)
+        """
         while True:
             fd=self.extractnext(chunk)
             yield fd
+            
+            
+import glob
+import os
+
+class dumps2vecs(dump2vecs):
+    
+    def __init__(self,dumpdir=os.curdir,dumpmatch='*.dump'):
+        #get dumpfiles
+        os.chdir(dumpdir)
+        dfs=glob.glob(dumpmatch)
+        dfs.sort() #need to have timestamped filenames
         
-
-
-
-
-#index is 3 make :3 len of atomidstr+spc
-#[float(aline.split()[3]) for aline in d2vt.dumpfile if '10 ' in aline[:3]]
- #%prun d2vt.binatomlines(d2vt.aggregate([d2vt.nextframeinfoi().next()]*100)['atomblocks'])
-#%prun list(d2vt.extractallvectors(400))
+        #go thru 1st file
+        self.dumpfile=open(dfs[0],'r')
+        dim=self.getdim();self.dumpfile.seek(0)
+        self.box={'x':None,'y':None};
+        if dim==3: self.box.update({'z':None})
+        self.broken=None# a place for when the natoms in a frame changes
+        #self.tsi=[]
+        self.ts=None
+        self.attribs=self.getatomattribs();self.dumpfile.seek(0)
+        #self.aids=self.getatomids1();self.dumpfile.seek(0)
+        
+        #replace dumpfile iter     
+        fobjs=itertools.imap(open,dfs)
+        self.dumpfile=itertools.chain.from_iterable(fobjs)
+        return
+        
