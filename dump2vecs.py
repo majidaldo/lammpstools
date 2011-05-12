@@ -1,5 +1,5 @@
 
-##Author: Majid al-Dosari
+##Author: Majid S. al-Dosari
 #Copyright (c) 2011, Majid al-Dosari
 #All rights reserved.
 #
@@ -25,16 +25,6 @@
 #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""
-usage: initiate dumps2vecs object with (optionally) a directory name and dump
-files pattern matching. defaults to the current directory and matches *.dump 
-files. then use method user_extractallvectors. obj.user_extractallvectors?
-for more info on the method.
-
-speed is significantly reduced if the number of atoms changes often or if each
-file only contains one frame (or few frames).
-
-"""
 
 
 import itertools
@@ -194,7 +184,7 @@ use method user_extractallvectors with a large chunksize
                 appender(af)
                 ctr+=1;lastna=af[2]
             except StopIteration:
-                if ctr!=0:print 'COMPLETE.',ctr,'timesteps read';break
+                if ctr!=0:print 'READING COMPLETE.';break#,ctr,'timesteps read';break
                 else: raise StopIteration
         return {'timesteps':iter(tss),'boxbounds':iter(boxes),'natoms':iter(natoms)
         ,'atomsblocks':iter(atomsblocks)}
@@ -269,6 +259,7 @@ class dumps2vecs(dump2vecs):
         dfs.sort() #need to have timestamped filenames
         
         #go thru 1st file
+        if len(dfs)==0:raise Exception, 'no dump files found'
         self.dumpfile=open(dfs[0],'r')
         dim=self.getdim();self.dumpfile.seek(0)
         self.box={'x':None,'y':None};
@@ -281,4 +272,4 @@ class dumps2vecs(dump2vecs):
         fobjs=itertools.imap(open,dfs)
         self.dumpfile=itertools.chain.from_iterable(fobjs)
         return
-        
+    
