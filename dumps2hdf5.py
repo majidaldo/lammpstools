@@ -33,10 +33,10 @@ converts lammps dump files to hdf5 database. can resume if interrupted.
 import os
 import sys
 
-from dump2vecs import dumps2vecs
+from dumps2vecs import dumps2vecs
 
 import h5py
-import scipy
+import numpy
 class dumps2hdf5o(object):
     
     #filing is attrib/atom/vector from tuple description
@@ -84,11 +84,12 @@ class dumps2hdf5o(object):
             filing=self._tuple2hier(arraywheader.keys()[0])
         else: filing =arraywheader.keys()[0] #posix style slashing
         arr=arraywheader.values()[0]
-        if type(arr)!=scipy.array: arr=scipy.array( arr )
+        if type(arr)!=numpy.array: arr=numpy.array( arr )
         if filing not in self.hdb:
             ms=list(arr.shape)
             ms[0]=None #only makes sense to append to 1st axis
-            self.hdb.create_dataset(filing,data=arr,maxshape=ms)#, compression='lzf') #can i create a blank?
+            self.hdb.create_dataset(filing,data=arr,maxshape=ms
+            ,chunks=True)#, compression='lzf') #can i create a blank?
         else:
             oldshape=self.hdb[filing].shape #a copy
             try:
@@ -99,7 +100,8 @@ class dumps2hdf5o(object):
                 del self.hdb[filing]
                 ms=list(arr.shape)
                 ms[0]=None #only makes sense to append to 1st axis
-                self.hdb.create_dataset(filing,data=pullout,maxshape=ms)#, compression='lzf')
+                self.hdb.create_dataset(filing,data=pullout,maxshape=ms
+                ,chunks=True)#, compression='lzf')
                 self.hdb[filing].resize(arr.shape[0]+oldshape[0],axis=0)
                 self.hdb[filing][oldshape[0]:]=arr
         return
@@ -107,21 +109,23 @@ class dumps2hdf5o(object):
         for ahdr,anarray in dictofarrayswheaders.iteritems():
             self.appender1({ahdr:anarray})
         return        
-    def appendifnotalreadyin(self,filing,tsarray):#for unordered but slow
+    def appendifnotalreadyin(self,filing,tsarray):#for unordered but slow-er
         if self._tuple2heir(filing) in self.hdb:
             dbrsrc=self.hdb[self._tuple2hier(filing)]
             tsvecf=[apiece for apiece in tsarray if apiece[0] not in dbrsrc['ts']]
         else: tsvecf=tsarray #it's in there
-        tsvecf=scipy.array(tsvecf
+        tsvecf=numpy.array(tsvecf #crap
             ,dtype=[('ts',int),('vals',self.getattribdtype(tsvecf[0][1]))])
         self.appender({filing:tsvecf })
         return
         
     def makeattribarray(self,tsi,attrib,sequence):
-        tsvec=zip(tsi,sequence)
-        return scipy.array(tsvec
-        ,dtype=[('ts',int)
-        ,('vals',self.getattribdtype(attrib,tsvec[0][1]))])
+        #tsvec=zip(tsi,sequence) #zip was a bottleneck
+        aa= numpy.zeros(len(tsi)
+        ,dtype=[('ts',int),('vals',self.getattribdtype(attrib,sequence[0] ))])
+        aa['ts']=tsi;aa['vals']=sequence
+        return aa
+        
         
     def resumefrom(self,under='/'):#for resuming
     #so then i can just scan to the ts in the dump
@@ -132,12 +136,16 @@ class dumps2hdf5o(object):
         for stuff in atomsdumpi:
             tsi=list(stuff['timesteps']);na=list(stuff['natoms']);bb=list(stuff['boxbounds'])
             vecs=list(stuff['vecs'])
-            self.appender1({tuple(prefiling+['natoms']):scipy.array(zip(tsi,na)
-                ,dtype=[('ts',int),('vals',int)])    } )
-#            self.appender1({tuple(prefiling+['timsteps']):scipy.array(zip(tsi,tsi)
+            vl=len(tsi)
+            
+            nar=numpy.zeros(vl, dtype=[('ts',int),('vals',int)])
+            nar['ts']=tsi;nar['vals']=na
+            self.appender1({tuple(prefiling+['natoms']):nar  } );del nar
+#            self.appender1({tuple(prefiling+['timsteps']):numpy.array(zip(tsi,tsi)
 #                ,dtype=[('ts',int),('vals',int)])    } )
-            self.appender1({tuple(prefiling+['boxbounds']):scipy.array(zip(tsi,bb)
-                ,dtype=[('ts',int),('vals','f4',(3,2))])    })
+            bbar=numpy.zeros(vl, dtype=[('ts',int),('vals','f4',(3,2))] )
+            bbar['ts']=tsi;bbar['vals']=bb
+            self.appender1({tuple(prefiling+['boxbounds']):bbar  });del bbar
             for anatomsstuff in vecs:
                 aid=anatomsstuff[0];atomsdatadic=anatomsstuff[1]
                 for anatomattrib,sequence in atomsdatadic.iteritems():                
@@ -151,8 +159,8 @@ class dumps2hdf5o(object):
     def sort(self, filing,by=['ts']):
         rsrc=self.returnrsrc(filing)
         #if type(rsrc)!=h5py.Dataset:raise Exception
-        tosort=scipy.array(rsrc)
-        tosort=scipy.sort(tosort,order=by)
+        tosort=numpy.array(rsrc)
+        tosort=numpy.sort(tosort,order=by)
         self.hdb[self._tuple2hier(filing)][:]=tosort
         return tosort #ValueError if unknown field    
         
@@ -168,7 +176,7 @@ class dumps2hdf5o(object):
         return v
         
     def uniquets(self,tsarray,tsname='ts'):
-        utsi=scipy.unique(tsarray[tsname],return_index=True)[1]
+        utsi=numpy.unique(tsarray[tsname],return_index=True)[1]
         return tsarray[utsi]
     def removerepeatedts(self,adsn):#dataset name
         rrts=self.uniquets(self.hdb[adsn][:])
@@ -242,7 +250,7 @@ class dumps2hdf5o(object):
 
         
 pkwargs={'hdf5file': os.path.join(os.curdir,'atoms.hdf5')
-,'chunk':5000
+,'chunk':1000
 ,'dumpdir':os.curdir,'dumpmatch':'*.dump'
 ,'deldumpfiles':False}
 import glob
@@ -251,7 +259,7 @@ def dumps2hdf5(hdf5file=pkwargs['hdf5file']#output
 ,dumpdir=pkwargs['dumpdir'],dumpmatch=pkwargs['dumpmatch']#dump reader args
 ,deldumpfiles=pkwargs['deldumpfiles']):
         
-    dr=dumps2vecs(dumpdir)
+    dr=dumps2vecs(dumpdir=dumpdir,dumpmatch=dumpmatch)
     d2h=dumps2hdf5o( dr ,  hdf5file  )
 
     #if new db hasn't been created, means it's still reading/writing
@@ -296,17 +304,19 @@ def cmdlinerun():
 
     parser = OptionParser(usage=progdesc)
     parser.add_option('--chunk',dest='chunk',type='int',default=pkwargs['chunk']
-    ,help='how many timesteps to read at once. bigger is better. Default='+str(pkwargs['chunk']))
+    ,help='how many timesteps to read at once. Default='+str(pkwargs['chunk'])+' seems best')
     parser.add_option('--dumpdir',dest='dumpdir',type='str',default=pkwargs['dumpdir']
     ,help='location of dump files. Default='+str(pkwargs['dumpdir'])   )
     parser.add_option('--dumpmatch',dest='dumpmatch',type='str',default=pkwargs['dumpmatch']
-    ,help='dump file name pattern match. Default='+str(pkwargs['chunk']))
+    ,help='dump file name pattern match. Default='+str(pkwargs['dumpmatch']))
     parser.add_option('--deldumpfiles',dest='deldumpfiles',action='store_true',default=pkwargs['deldumpfiles']
     ,help='delete dumpfiles after putting into database. Default='+str(pkwargs['deldumpfiles']))
     parser.add_option('--hdf5file',dest='hdf5file',type='str',default=pkwargs['hdf5file']
     ,help='destination database name. Default='+str(pkwargs['hdf5file']))
                       
     options, clargs = parser.parse_args()
+    
+    print options.dumpmatch
         
     dumps2hdf5(hdf5file=options.hdf5file
     ,chunk=options.chunk
