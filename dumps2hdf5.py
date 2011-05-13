@@ -315,9 +315,7 @@ def cmdlinerun():
     ,help='destination database name. Default='+str(pkwargs['hdf5file']))
                       
     options, clargs = parser.parse_args()
-    
-    print options.dumpmatch
-        
+            
     dumps2hdf5(hdf5file=options.hdf5file
     ,chunk=options.chunk
     ,dumpdir=options.dumpdir,dumpmatch=options.dumpmatch
