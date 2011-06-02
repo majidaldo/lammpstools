@@ -29,7 +29,7 @@
 
 import itertools
 import collections
-import operator
+#import operator
 
 class dump2vecs(object):
     """
@@ -212,12 +212,16 @@ use method user_extractallvectors with a large chunksize
         return store
         
         
-    def extractvectorsfromlines(self,splitatomlines):#potential bug here?
+    def extractvectorsfromlines(self,splitatomlines):
         """input one atom's lines, return dict w/ attrib key"""
-        vecsi=self.attribs.values();vecsi.remove(self.attribs['id'])
-        sls=[operator.itemgetter(*vecsi)(al) for al in splitatomlines]
         #return numpy.transpose(sls) #makes it slow
-        return dict(itertools.izip(self.attribs.keys(),itertools.izip(*sls))) #much faster! why? idk.
+        vd= dict(itertools.izip(range(len(self.attribs.values()))
+            ,itertools.izip(*splitatomlines))) #<-this part is a transpose 
+        #^^^much faster that np.transpose! why? idk!
+        vd.pop(self.attribs['id']) #apparently no penalty for pop
+        rd=dict([(v,k) for k,v in self.attribs.iteritems()])
+        vd=dict([(rd[k],v) for k,v in vd.iteritems()])
+        return vd
         #return zip(*sls)
         #return map(None,*sls) #slow
         
